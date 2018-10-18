@@ -2,7 +2,8 @@
 
 手写 `Promise` 实现 (IPromise)
 
-## 实现过程
+## 过程
+### Promise构造函数的实现
 首先看一下新建一个Promise的实现
 ```js
 new Promise((resolve, reject) => {
@@ -54,7 +55,8 @@ function Promise(fn) {
   }
 }
 ```
-### then的实现
+### 实例方法的实现
+#### then的实现
 根据规范，Promise对象的then方法接受两个函数参数onResolve和onReject, 同时then方法返回一个Promise以供链式调用，所以then方法的结构是这样的
 ```js
 Promise.prototype.then = function(onResolve, onReject) {
@@ -192,3 +194,75 @@ Promise.prototype.then = function(onResolve, onReject) {
   })
 }
 ```
+到目前为止，Promise和then方法的实现完整了
+
+#### catch方法的实现
+then方法能够处理resolved和rejected状态，catch方法只需要处理rejected状态，显然，catch是then方法的一个特例，实现如下：
+```js
+Promise.prototype.catch = function (onReject) {
+  return this.then(null, onReject)
+}
+```
+
+#### finally方法的实现
+finally方法在Promise实例resolved或者rejected时均会执行，它接受一个回调函数作为参数，返回新的Promise实例。回调函数在被调用时，不接受任何参数，因此无从得知Promise实例的状态是resolved或者rejected。finally之后的Promise实例可以会接受finally之前的Promise实例的状态，可通过then方法实现
+```js
+Promise.prototype.finally = function (cb) {
+  return this.then(
+    value => Promise.resolve(cb()).then(() => value),
+    reason => Promise.resolve(cb()).then(() => { throw reason })
+  )
+}
+```
+### 静态方法的实现
+#### Promise.resolve的实现
+```js
+Promise.resolve = function (value) {
+  const P = this
+  return new Promise(resolve => resolve(value))
+}
+```
+
+#### Promise.reject的实现
+```js
+Promise.reject = function (reason) {
+  const P = this
+  return new P((resolve, reject) => reject(reason))
+}
+```
+
+#### Promise.race的实现
+race方法接受一个Promise实例数组，返回一个新的Promise实例，新的Promise实例的状态跟随数组中最先resolved或rejected的Promise实例，实现如下
+```js
+Promise.race = function (list) {
+  const P = this
+  return new P((resolve, reject) => {
+    list.forEach(item => item.then(resolve, reject))
+  })
+}
+```
+
+#### Promise.all的实现
+all方法接受一个Promise实例数据，返回一个新的Promise实例，当实例数组全部resolved时，新的Promise实例才会resolved, 数组中的任何一个实例reject, 新的Promise实例会rejected。
+```js
+Promise.all = function(list) {
+  const P = this
+  let count = 0
+  const result = []
+  return new P((resolve, reject) => {
+    list.forEach((item, index) => {
+      item.then(value => {
+        result[index] = value
+        count += 1
+        if (count === list.length) {
+          resolve(result)
+        }
+      }).catch(reason => {
+        reject(reason)
+      })
+    })
+  })
+}
+```
+### 结语
+纸上得来终觉浅，绝知此事要躬行
